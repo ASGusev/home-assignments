@@ -35,9 +35,9 @@ def _build_program():
         
         void main() {
             if (mask != 0) {
-                gl_Position = vec4(position, 1.0) * m * vp;
+                gl_Position =  vp * m * vec4(position, 1.0);
             } else {
-                gl_Position = vec4(position, 1.0) * vp;
+                gl_Position = vp * vec4(position, 1.0);
             }
             f_color = color;
         }""",
@@ -57,46 +57,54 @@ def _build_program():
     return shaders.compileProgram(vertex_shader, fragment_shader)
 
 
-def _make_frustum(camera_fov_y, camera_fov_x):
+def calc_fy(camera_fov_y):
+    return 2 * np.tan(camera_fov_y / 2)
+
+
+def _make_frustum(camera_fov_y, aspect_ratio):
+    fy =  calc_fy(camera_fov_y)
+    fx = fy / aspect_ratio
     return np.array([
         [0, 0, 0],
-        [-camera_fov_x, -camera_fov_y, -1],
+        [-fx, -fy, -1],
         [0, 0, 0],
-        [-camera_fov_x, camera_fov_y, -1],
+        [-fx, fy, -1],
         [0, 0, 0],
-        [camera_fov_x, -camera_fov_y, -1],
+        [fx, -fy, -1],
         [0, 0, 0],
-        [camera_fov_x, camera_fov_y, -1],
-        [-camera_fov_x, -camera_fov_y, -1],
-        [-camera_fov_x, camera_fov_y, -1],
-        [camera_fov_x, camera_fov_y, -1],
-        [camera_fov_x, -camera_fov_y, -1]
+        [fx, fy, -1],
+        [-fx, -fy, -1],
+        [-fx, fy, -1],
+        [fx, fy, -1],
+        [fx, -fy, -1]
     ])
 
 
 def _make_m(camera_tr_vec, camera_rot_mat):
     return np.block([
-        [np.linalg.inv(camera_rot_mat).T, np.zeros((3, 1))],
-        [np.expand_dims(camera_tr_vec, 0), np.ones((1, 1))]
+        [np.linalg.inv(camera_rot_mat).T, np.expand_dims(camera_tr_vec, 1)],
+        [np.zeros((1, 3)), np.ones((1, 1))]
     ])
 
 
 def _make_vp(camera_tr_vec, camera_rot_mat, camera_fov_y):
-    v = np.zeros((4, 4), dtype=np.float32)
-    v[3, :3] = -camera_tr_vec
-    v[:3, :3] = np.linalg.inv(camera_rot_mat)
-    v[3, 3] = 1
+    v = np.linalg.inv(np.block([
+        [camera_rot_mat, camera_tr_vec.reshape((3, 1))],
+        [np.zeros((1, 3)), np.ones((1, 1))]
+    ]))
 
     aspect_ratio = GLUT.glutGet(GLUT.GLUT_WINDOW_WIDTH) / GLUT.glutGet(GLUT.GLUT_WINDOW_HEIGHT)
-    camera_fov_x = camera_fov_y / aspect_ratio
+    fy = calc_fy(camera_fov_y)
+    fx = fy / aspect_ratio
+    # camera_fov_x = camera_fov_y / aspect_ratio
     p = np.zeros((4, 4), dtype=np.float32)
-    p[0, 0] = camera_fov_x
-    p[1, 1] = camera_fov_y
+    p[0, 0] = fx
+    p[1, 1] = fy
     p[2, 2] = -(FAR + NEAR) / (FAR - NEAR)
     p[2, 3] = -2 * FAR * NEAR / (FAR - NEAR)
     p[3, 2] = -1
 
-    return v @ p.T
+    return p @ v
 
 
 class CameraTrackRenderer:
@@ -119,15 +127,13 @@ class CameraTrackRenderer:
 
         self.cam_positions = np.array([i.t_vec for i in tracked_cam_track])
         self.cam_rotations = np.array([i.r_mat for i in tracked_cam_track])
-        self.cam_fov_y = tracked_cam_parameters.fov_y
-        self.cam_fov_x = tracked_cam_parameters.fov_y * tracked_cam_parameters.aspect_ratio
 
         self.n_points = len(point_cloud.points)
         self.track_len = len(tracked_cam_track)
         self.point_coordinates = np.concatenate([
             point_cloud.points * np.array([[1, -1, -1]]),
             self.cam_positions,
-            _make_frustum(self.cam_fov_y, self.cam_fov_x)
+            _make_frustum(tracked_cam_parameters.fov_y, tracked_cam_parameters.aspect_ratio)
         ]).astype(np.float32)
         self.point_colors = np.concatenate([
             point_cloud.colors,
