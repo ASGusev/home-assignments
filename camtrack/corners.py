@@ -21,8 +21,8 @@ from _corners import dump, load, draw, without_short_tracks, create_cli
 
 NEIGHBOUR_DIST = 16
 COVER_KERNEL = np.ones((2 * NEIGHBOUR_DIST + 1, 2 * NEIGHBOUR_DIST + 1), dtype=np.uint8)
-CORNERS_PER_TIME = 1000
-CORNER_QUALITY = 0.005
+CORNERS_PER_TIME = 500
+CORNER_QUALITY = 0.01
 
 
 class _CornerStorageBuilder:
@@ -59,6 +59,7 @@ def _build_impl(frame_sequence: pims.FramesSequence,
     corners = FrameCorners(corner_ids, corners_coordinates, corner_sizes)
     builder.set_corners_at_frame(0, corners)
     prev_image = np.uint8(frame_sequence[0] * 255)
+    n_tracks = len(track_ids)
     for frame, image in enumerate(frame_sequence[1:], 1):
         image = np.uint8(image * 255)
         h, w = image.shape
@@ -76,14 +77,15 @@ def _build_impl(frame_sequence: pims.FramesSequence,
         new_points = cv2.goodFeaturesToTrack(image, CORNERS_PER_TIME, CORNER_QUALITY, NEIGHBOUR_DIST)
         new_points = new_points[covered_mask[_points_coordinates(new_points, h, w)] == 0]
         points = np.concatenate([points, new_points])
-        new_ids = np.arange(len(tracks), len(tracks) + len(new_points))
+
+        new_ids = np.arange(n_tracks, n_tracks + len(new_points))
+        n_tracks += len(new_points)
         tracks += [[new_point] for new_point in new_points]
         track_ids = np.concatenate([track_ids, new_ids])
         prev_image = image.copy()
         corners_coordinates = np.squeeze(np.int32(points))
-        corner_ids = np.arange(len(corners_coordinates))
         corner_sizes = np.zeros(len(corners_coordinates), dtype=np.int32) + highlight_size
-        corners = FrameCorners(corner_ids, corners_coordinates, corner_sizes)
+        corners = FrameCorners(track_ids, corners_coordinates, corner_sizes)
         builder.set_corners_at_frame(frame, corners)
 
 

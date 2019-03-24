@@ -179,8 +179,8 @@ def triangulate_correspondences(correspondences: Correspondences,
                                 intrinsic_mat: np.ndarray,
                                 parameters: TriangulationParameters) \
         -> Tuple[np.ndarray, np.ndarray]:
-    points2d_1 = correspondences.points_1
-    points2d_2 = correspondences.points_2
+    points2d_1 = np.float32(correspondences.points_1)
+    points2d_2 = np.float32(correspondences.points_2)
 
     normalized_points2d_1 = cv2.undistortPoints(
         points2d_1.reshape(-1, 1, 2),
