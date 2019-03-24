@@ -16,11 +16,11 @@ import frameseq
 from _camtrack import *
 
 
-TRIANGULATION_PARAMETERS = TriangulationParameters(1, 5, .1)
-ADDITIONAL_TRIANGULATION_PARAMETERS = TriangulationParameters(1, 5, 1)
+TRIANGULATION_PARAMETERS = TriangulationParameters(1, 8, .1)
+ADDITIONAL_TRIANGULATION_PARAMETERS = TriangulationParameters(1, 7, 1)
 MAX_TRIANGULATION_COS = .98
-MAX_TRIANGULATION_PARTNERS = 5
-MAX_PROJECTION_ERROR = 10
+MAX_TRIANGULATION_PARTNERS = 6
+MAX_PROJECTION_ERROR = 20
 
 
 def try_initialize(first_corners: FrameCorners, other_corners: FrameCorners, intrinsic_mat):
@@ -57,7 +57,6 @@ def _track_camera(corner_storage: CornerStorage,
     rot_vectors = np.array([[0, 0, 1]])
     bad = set()
     for frame_corners in corner_storage[1:]:
-        assert np.all(cloud_builder.ids[1:] > cloud_builder.ids[:-1])
         common_ids, (corner_ids, cloud_ids) = snp.intersect(
             frame_corners.ids.flatten(), cloud_builder.ids.flatten(), indices=True)
         not_bad = np.array([i not in bad for i in common_ids])
