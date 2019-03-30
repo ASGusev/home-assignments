@@ -14,6 +14,7 @@ from corners import CornerStorage, FrameCorners
 from data3d import CameraParameters, PointCloud, Pose
 import frameseq
 from _camtrack import *
+from ba import run_bundle_adjustment
 
 
 TRIANGULATION_PARAMETERS = TriangulationParameters(1, 8, .1)
@@ -56,7 +57,7 @@ def _track_camera(corner_storage: CornerStorage,
     prev_r = np.array([[0], [0], [1]])
     rot_vectors = np.array([[0, 0, 1]])
     bad = set()
-    for frame_corners in corner_storage[1:]:
+    for j, frame_corners in enumerate(corner_storage[1:], 2):
         common_ids, (corner_ids, cloud_ids) = snp.intersect(
             frame_corners.ids.flatten(), cloud_builder.ids.flatten(), indices=True)
         not_bad = np.array([i not in bad for i in common_ids])
@@ -95,6 +96,11 @@ def _track_camera(corner_storage: CornerStorage,
                 ADDITIONAL_TRIANGULATION_PARAMETERS)
             cloud_builder.add_points(new_ids, new_points)
         rot_vectors = np.vstack((rot_vectors, rvec.T))
+        n_inliers = np.sum(projection_errors < MAX_PROJECTION_ERROR)
+        cloud_size = len(cloud_builder.ids) - len(bad)
+        n_triang = len(inliers.get())
+        print(f'Frame {j}, {n_inliers} inliers, {n_triang} points triangulation, {cloud_size} points in cloud')
+    camera_positions = run_bundle_adjustment(intrinsic_mat, list(corner_storage), MAX_PROJECTION_ERROR, camera_positions, cloud_builder)
     return camera_positions, cloud_builder
 
 
